@@ -30,9 +30,8 @@ async function setItems(items: ShoppingItem[]): Promise<void> {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(JSON.stringify(items)),
+    body: JSON.stringify(items),
   });
 }
 

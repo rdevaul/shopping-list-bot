@@ -26,13 +26,13 @@ async function getItems(): Promise<ShoppingItem[]> {
 }
 
 async function setItems(items: ShoppingItem[]): Promise<void> {
+  // Upstash REST API: POST body is the raw value string
   await fetch(`${UPSTASH_URL}/set/${ITEMS_KEY}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(JSON.stringify(items)),
+    body: JSON.stringify(items),
   });
 }
 

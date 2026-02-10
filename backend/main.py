@@ -100,9 +100,8 @@ async def upstash_set(key: str, value: str):
             f"{UPSTASH_URL}/set/{key}",
             headers={
                 "Authorization": f"Bearer {UPSTASH_TOKEN}",
-                "Content-Type": "application/json"
             },
-            json={"value": value}
+            content=value
         )
 
 
