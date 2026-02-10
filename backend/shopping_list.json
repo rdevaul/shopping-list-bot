@@ -1,0 +1,13 @@
+[
+  {
+    "id": "b2498991-5078-4195-a814-6c48a9c8f443",
+    "name": "milk",
+    "quantity": "1 gallon",
+    "is_staple": false,
+    "checked": false,
+    "checked_at": null,
+    "position": 0,
+    "added_by": 994902066,
+    "added_at": "2026-02-10T04:39:24.744246"
+  }
+]

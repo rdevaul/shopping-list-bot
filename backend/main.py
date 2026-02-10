@@ -7,20 +7,23 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional, List
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-import redis.asyncio as redis
 
 load_dotenv()
 
-# Redis connection
+# Redis connection (optional)
 REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
 REDIS_TOKEN = os.getenv("UPSTASH_REDIS_TOKEN")
 
-redis_client: Optional[redis.Redis] = None
+# Local storage fallback
+LOCAL_STORAGE_FILE = Path(__file__).parent / "shopping_list.json"
+
+redis_client = None
 
 
 @asynccontextmanager
@@ -28,11 +31,17 @@ async def lifespan(app: FastAPI):
     """Manage Redis connection lifecycle."""
     global redis_client
     if REDIS_URL:
-        redis_client = redis.from_url(
-            REDIS_URL,
-            password=REDIS_TOKEN,
-            decode_responses=True
-        )
+        try:
+            import redis.asyncio as redis_lib
+            redis_client = redis_lib.from_url(
+                REDIS_URL,
+                password=REDIS_TOKEN,
+                decode_responses=True
+            )
+        except ImportError:
+            print("Redis not installed, using local JSON storage")
+    else:
+        print("No Redis URL configured, using local JSON storage")
     yield
     if redis_client:
         await redis_client.close()
@@ -81,30 +90,49 @@ class ReorderRequest(BaseModel):
     item_ids: List[str]  # Ordered list of item IDs
 
 
-# ============== Redis Helpers ==============
+# ============== Storage Helpers ==============
 
 ITEMS_KEY = "shopping:items"
 
 
-async def get_redis() -> redis.Redis:
-    if not redis_client:
-        raise HTTPException(status_code=500, detail="Redis not configured")
-    return redis_client
+class Storage:
+    """Abstract storage that uses Redis if available, otherwise local JSON."""
+    
+    @staticmethod
+    async def load_items() -> List[ShoppingItem]:
+        """Load all items from storage."""
+        if redis_client:
+            data = await redis_client.get(ITEMS_KEY)
+            if not data:
+                return []
+            items_data = json.loads(data)
+        else:
+            # Local JSON fallback
+            if not LOCAL_STORAGE_FILE.exists():
+                return []
+            items_data = json.loads(LOCAL_STORAGE_FILE.read_text())
+        
+        return [ShoppingItem(**item) for item in items_data]
+    
+    @staticmethod
+    async def save_items(items: List[ShoppingItem]):
+        """Save all items to storage."""
+        items_data = [item.model_dump(mode='json') for item in items]
+        json_str = json.dumps(items_data, default=str, indent=2)
+        
+        if redis_client:
+            await redis_client.set(ITEMS_KEY, json_str)
+        else:
+            # Local JSON fallback
+            LOCAL_STORAGE_FILE.write_text(json_str)
 
 
-async def load_items(r: redis.Redis) -> List[ShoppingItem]:
-    """Load all items from Redis."""
-    data = await r.get(ITEMS_KEY)
-    if not data:
-        return []
-    items_data = json.loads(data)
-    return [ShoppingItem(**item) for item in items_data]
+async def load_items() -> List[ShoppingItem]:
+    return await Storage.load_items()
 
 
-async def save_items(r: redis.Redis, items: List[ShoppingItem]):
-    """Save all items to Redis."""
-    items_data = [item.model_dump(mode='json') for item in items]
-    await r.set(ITEMS_KEY, json.dumps(items_data, default=str))
+async def save_items(items: List[ShoppingItem]):
+    await Storage.save_items(items)
 
 
 # ============== API Endpoints ==============
@@ -115,18 +143,18 @@ async def health():
 
 
 @app.get("/items", response_model=List[ShoppingItem])
-async def get_items(r: redis.Redis = Depends(get_redis)):
+async def get_items():
     """Get all shopping items, sorted by staples first, then position."""
-    items = await load_items(r)
+    items = await load_items()
     # Sort: staples first, then by position
     items.sort(key=lambda x: (not x.is_staple, x.position))
     return items
 
 
 @app.post("/items", response_model=ShoppingItem)
-async def add_item(req: AddItemRequest, r: redis.Redis = Depends(get_redis)):
+async def add_item(req: AddItemRequest):
     """Add a new item or update quantity if exists."""
-    items = await load_items(r)
+    items = await load_items()
     
     # Check if item already exists (by normalized name)
     normalized = req.name.lower().strip()
@@ -137,7 +165,7 @@ async def add_item(req: AddItemRequest, r: redis.Redis = Depends(get_redis)):
         existing.quantity = req.quantity or existing.quantity
         existing.checked = False
         existing.checked_at = None
-        await save_items(r, items)
+        await save_items(items)
         return existing
     
     # Create new item
@@ -153,18 +181,14 @@ async def add_item(req: AddItemRequest, r: redis.Redis = Depends(get_redis)):
         added_at=datetime.utcnow()
     )
     items.append(item)
-    await save_items(r, items)
+    await save_items(items)
     return item
 
 
 @app.patch("/items/{item_id}", response_model=ShoppingItem)
-async def update_item(
-    item_id: str, 
-    req: UpdateItemRequest, 
-    r: redis.Redis = Depends(get_redis)
-):
+async def update_item(item_id: str, req: UpdateItemRequest):
     """Update an item's properties."""
-    items = await load_items(r)
+    items = await load_items()
     item = next((i for i in items if i.id == item_id), None)
     
     if not item:
@@ -183,37 +207,37 @@ async def update_item(
     if req.quantity is not None:
         item.quantity = req.quantity
     
-    await save_items(r, items)
+    await save_items(items)
     return item
 
 
 @app.delete("/items/{item_id}")
-async def delete_item(item_id: str, r: redis.Redis = Depends(get_redis)):
+async def delete_item(item_id: str):
     """Delete an item."""
-    items = await load_items(r)
+    items = await load_items()
     items = [i for i in items if i.id != item_id]
-    await save_items(r, items)
+    await save_items(items)
     return {"status": "deleted"}
 
 
 @app.post("/items/reorder")
-async def reorder_items(req: ReorderRequest, r: redis.Redis = Depends(get_redis)):
+async def reorder_items(req: ReorderRequest):
     """Reorder items based on provided ID list."""
-    items = await load_items(r)
+    items = await load_items()
     id_to_item = {i.id: i for i in items}
     
     for pos, item_id in enumerate(req.item_ids):
         if item_id in id_to_item:
             id_to_item[item_id].position = pos
     
-    await save_items(r, items)
+    await save_items(items)
     return {"status": "reordered"}
 
 
 @app.post("/cleanup")
-async def cleanup_old_items(r: redis.Redis = Depends(get_redis)):
+async def cleanup_old_items():
     """Remove checked one-offs older than 24h, decay staple quantities."""
-    items = await load_items(r)
+    items = await load_items()
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=24)
     
@@ -237,7 +261,7 @@ async def cleanup_old_items(r: redis.Redis = Depends(get_redis)):
         else:
             cleaned.append(item)
     
-    await save_items(r, cleaned)
+    await save_items(cleaned)
     return {"status": "cleaned", "removed": len(items) - len(cleaned)}
 
 
