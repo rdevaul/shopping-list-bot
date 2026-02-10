@@ -158,6 +158,102 @@ async def staple_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Failed to update item: {e}")
 
 
+async def unstaple_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /unstaple command - demote staple to one-off."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    if not is_authorized(user_id, chat_id):
+        return
+    
+    if not context.args:
+        await update.message.reply_text("Usage: /unstaple <item>")
+        return
+    
+    item_name = " ".join(context.args).lower()
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{API_URL}/items")
+            items = response.json()
+            
+            matching = next((i for i in items if i['name'].lower() == item_name), None)
+            if matching:
+                await client.patch(
+                    f"{API_URL}/items/{matching['id']}",
+                    json={"is_staple": False}
+                )
+                await update.message.reply_text(f"📝 Demoted to one-off: {item_name}")
+            else:
+                await update.message.reply_text(f"❌ Item not found: {item_name}")
+        except Exception as e:
+            logger.error(f"Failed to update item: {e}")
+
+
+async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /check command - mark item as checked."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    if not is_authorized(user_id, chat_id):
+        return
+    
+    if not context.args:
+        await update.message.reply_text("Usage: /check <item>")
+        return
+    
+    item_name = " ".join(context.args).lower()
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{API_URL}/items")
+            items = response.json()
+            
+            matching = next((i for i in items if i['name'].lower() == item_name), None)
+            if matching:
+                await client.patch(
+                    f"{API_URL}/items/{matching['id']}",
+                    json={"checked": True}
+                )
+                await update.message.reply_text(f"✅ Checked: {item_name}")
+            else:
+                await update.message.reply_text(f"❌ Item not found: {item_name}")
+        except Exception as e:
+            logger.error(f"Failed to check item: {e}")
+
+
+async def uncheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /uncheck command - uncheck an item."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    if not is_authorized(user_id, chat_id):
+        return
+    
+    if not context.args:
+        await update.message.reply_text("Usage: /uncheck <item>")
+        return
+    
+    item_name = " ".join(context.args).lower()
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(f"{API_URL}/items")
+            items = response.json()
+            
+            matching = next((i for i in items if i['name'].lower() == item_name), None)
+            if matching:
+                await client.patch(
+                    f"{API_URL}/items/{matching['id']}",
+                    json={"checked": False}
+                )
+                await update.message.reply_text(f"⬜ Unchecked: {item_name}")
+            else:
+                await update.message.reply_text(f"❌ Item not found: {item_name}")
+        except Exception as e:
+            logger.error(f"Failed to uncheck item: {e}")
+
+
 async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /clear command - run cleanup."""
     user_id = update.effective_user.id
@@ -222,19 +318,44 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Failed to get list.")
 
 
+HELP_TEXT = """🛒 **DeVaul Family Shopping List**
+
+**Commands:**
+/shop - Open the interactive Mini App
+/list - View list as text
+/add <item> - Add an item (e.g., /add milk)
+/remove <item> - Remove an item
+/staple <item> - Mark item as staple
+/unstaple <item> - Demote staple to one-off
+/check <item> - Mark item as checked
+/uncheck <item> - Uncheck an item
+/clear - Clean up old checked items
+/help - Show this help message
+
+**Mini App Features:**
+• Tap checkbox to check/uncheck items
+• Drag items to reorder
+• Drag one-off → staples to promote
+• Drag staple → one-offs to demote
+
+**Natural Language:**
+Just ask GLaDOS! "Add eggs to the shopping list"
+"""
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     await update.message.reply_text(
         "👋 Welcome to the DeVaul Family Shopping List!\n\n"
-        "Commands:\n"
-        "/shop - Open the interactive shopping list\n"
-        "/add <item> - Add an item\n"
-        "/remove <item> - Remove an item\n"
-        "/staple <item> - Mark as staple\n"
-        "/list - View list as text\n"
-        "/clear - Clean up old checked items\n\n"
-        "Or just ask GLaDOS to add things naturally!"
+        "Use /help to see all commands, or /shop to open the Mini App.\n\n"
+        "You can also just ask GLaDOS to add things naturally!",
+        parse_mode="Markdown"
     )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command."""
+    await update.message.reply_text(HELP_TEXT, parse_mode="Markdown")
 
 
 def main():
@@ -246,10 +367,14 @@ def main():
     
     # Add handlers
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("shop", shop_command))
     app.add_handler(CommandHandler("add", add_command))
     app.add_handler(CommandHandler("remove", remove_command))
     app.add_handler(CommandHandler("staple", staple_command))
+    app.add_handler(CommandHandler("unstaple", unstaple_command))
+    app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("uncheck", uncheck_command))
     app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("list", list_command))
     

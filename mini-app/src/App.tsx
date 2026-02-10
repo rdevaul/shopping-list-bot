@@ -261,23 +261,28 @@ function App() {
             </section>
           )}
 
-          {oneOffs.length > 0 && (
-            <section className="section">
-              <h2>📝 One-offs</h2>
-              <SortableContext
-                items={oneOffs.map(i => i.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {oneOffs.map(item => (
+          {/* Always show one-offs section so staples can be demoted */}
+          <section className="section">
+            <h2>📝 One-offs</h2>
+            <SortableContext
+              items={oneOffs.map(i => i.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {oneOffs.length > 0 ? (
+                oneOffs.map(item => (
                   <SortableItem
                     key={item.id}
                     item={item}
                     onToggle={() => toggleItem(item.id)}
                   />
-                ))}
-              </SortableContext>
-            </section>
-          )}
+                ))
+              ) : (
+                <div className="empty-section">
+                  <p className="hint">Drag staples here to demote them</p>
+                </div>
+              )}
+            </SortableContext>
+          </section>
 
           {items.length === 0 && (
             <div className="empty">
