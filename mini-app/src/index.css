@@ -74,12 +74,20 @@ header h1 {
   cursor: grab;
   color: var(--hint-color);
   font-size: 18px;
-  padding: 4px;
+  padding: 12px 8px;
   user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 
 .drag-handle:active {
   cursor: grabbing;
+}
+
+/* Prevent iOS text selection and callouts during drag */
+.item {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .checkbox {
