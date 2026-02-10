@@ -51,7 +51,8 @@ interface ShoppingItem {
   checked: boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8200';
+// Use relative paths for Vercel API routes, or fall back to env var for local dev
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function App() {
   const [items, setItems] = useState<ShoppingItem[]>([]);

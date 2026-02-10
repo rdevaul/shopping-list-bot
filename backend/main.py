@@ -9,42 +9,32 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
-# Redis connection (optional)
-REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
-REDIS_TOKEN = os.getenv("UPSTASH_REDIS_TOKEN")
+# Upstash Redis REST API
+UPSTASH_URL = os.getenv("UPSTASH_REDIS_REST_URL")
+UPSTASH_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 
 # Local storage fallback
 LOCAL_STORAGE_FILE = Path(__file__).parent / "shopping_list.json"
 
-redis_client = None
+ITEMS_KEY = "shopping:items"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage Redis connection lifecycle."""
-    global redis_client
-    if REDIS_URL:
-        try:
-            import redis.asyncio as redis_lib
-            redis_client = redis_lib.from_url(
-                REDIS_URL,
-                password=REDIS_TOKEN,
-                decode_responses=True
-            )
-        except ImportError:
-            print("Redis not installed, using local JSON storage")
+    """App lifespan handler."""
+    if UPSTASH_URL and UPSTASH_TOKEN:
+        print(f"Using Upstash Redis: {UPSTASH_URL}")
     else:
-        print("No Redis URL configured, using local JSON storage")
+        print("No Upstash configured, using local JSON storage")
     yield
-    if redis_client:
-        await redis_client.close()
 
 
 app = FastAPI(title="Shopping List API", lifespan=lifespan)
@@ -92,54 +82,63 @@ class ReorderRequest(BaseModel):
 
 # ============== Storage Helpers ==============
 
-ITEMS_KEY = "shopping:items"
+async def upstash_get(key: str) -> Optional[str]:
+    """Get a value from Upstash Redis."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{UPSTASH_URL}/get/{key}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"}
+        )
+        data = response.json()
+        return data.get("result")
 
 
-class Storage:
-    """Abstract storage that uses Redis if available, otherwise local JSON."""
-    
-    @staticmethod
-    async def load_items() -> List[ShoppingItem]:
-        """Load all items from storage."""
-        if redis_client:
-            data = await redis_client.get(ITEMS_KEY)
-            if not data:
-                return []
-            items_data = json.loads(data)
-        else:
-            # Local JSON fallback
-            if not LOCAL_STORAGE_FILE.exists():
-                return []
-            items_data = json.loads(LOCAL_STORAGE_FILE.read_text())
-        
-        return [ShoppingItem(**item) for item in items_data]
-    
-    @staticmethod
-    async def save_items(items: List[ShoppingItem]):
-        """Save all items to storage."""
-        items_data = [item.model_dump(mode='json') for item in items]
-        json_str = json.dumps(items_data, default=str, indent=2)
-        
-        if redis_client:
-            await redis_client.set(ITEMS_KEY, json_str)
-        else:
-            # Local JSON fallback
-            LOCAL_STORAGE_FILE.write_text(json_str)
+async def upstash_set(key: str, value: str):
+    """Set a value in Upstash Redis."""
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{UPSTASH_URL}/set/{key}",
+            headers={
+                "Authorization": f"Bearer {UPSTASH_TOKEN}",
+                "Content-Type": "application/json"
+            },
+            json={"value": value}
+        )
 
 
 async def load_items() -> List[ShoppingItem]:
-    return await Storage.load_items()
+    """Load all items from storage."""
+    if UPSTASH_URL and UPSTASH_TOKEN:
+        data = await upstash_get(ITEMS_KEY)
+        if not data:
+            return []
+        items_data = json.loads(data)
+    else:
+        # Local JSON fallback
+        if not LOCAL_STORAGE_FILE.exists():
+            return []
+        items_data = json.loads(LOCAL_STORAGE_FILE.read_text())
+    
+    return [ShoppingItem(**item) for item in items_data]
 
 
 async def save_items(items: List[ShoppingItem]):
-    await Storage.save_items(items)
+    """Save all items to storage."""
+    items_data = [item.model_dump(mode='json') for item in items]
+    json_str = json.dumps(items_data, default=str)
+    
+    if UPSTASH_URL and UPSTASH_TOKEN:
+        await upstash_set(ITEMS_KEY, json_str)
+    else:
+        # Local JSON fallback
+        LOCAL_STORAGE_FILE.write_text(json.dumps(items_data, default=str, indent=2))
 
 
 # ============== API Endpoints ==============
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "storage": "upstash" if UPSTASH_URL else "local"}
 
 
 @app.get("/items", response_model=List[ShoppingItem])

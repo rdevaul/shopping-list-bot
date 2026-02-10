@@ -3,11 +3,55 @@
     "id": "b2498991-5078-4195-a814-6c48a9c8f443",
     "name": "milk",
     "quantity": "1 gallon",
-    "is_staple": false,
+    "is_staple": true,
     "checked": false,
     "checked_at": null,
     "position": 0,
     "added_by": 994902066,
     "added_at": "2026-02-10T04:39:24.744246"
+  },
+  {
+    "id": "eab12ffd-4ade-4d41-a9d0-8be5f77151a7",
+    "name": "eggs",
+    "quantity": "36",
+    "is_staple": true,
+    "checked": false,
+    "checked_at": null,
+    "position": 1,
+    "added_by": 994902066,
+    "added_at": "2026-02-10T05:12:52.272924"
+  },
+  {
+    "id": "24126b30-f6b4-4cd4-aaba-49144b5c6179",
+    "name": "head of john the baptist",
+    "quantity": null,
+    "is_staple": false,
+    "checked": false,
+    "checked_at": null,
+    "position": 2,
+    "added_by": 994902066,
+    "added_at": "2026-02-10T05:14:14.724887"
+  },
+  {
+    "id": "c28040d9-a21c-47f8-a73a-9391f0f3c457",
+    "name": "bread",
+    "quantity": null,
+    "is_staple": true,
+    "checked": false,
+    "checked_at": null,
+    "position": 3,
+    "added_by": 994902066,
+    "added_at": "2026-02-10T16:05:44.003532"
+  },
+  {
+    "id": "cf99ceb8-aeb3-496a-840e-854216f32590",
+    "name": "bagels",
+    "quantity": null,
+    "is_staple": true,
+    "checked": false,
+    "checked_at": null,
+    "position": 4,
+    "added_by": 994902066,
+    "added_at": "2026-02-10T16:05:44.013597"
   }
 ]
