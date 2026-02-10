@@ -136,21 +136,39 @@ function App() {
     const draggedItem = items[oldIndex];
     const targetItem = items[newIndex];
 
-    // Check if dragging from one-off to staples section
+    // Check if dragging from one-off to staples section (promote)
     if (!draggedItem.is_staple && targetItem.is_staple) {
-      // Prompt for promotion
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.showConfirm(
           `Make "${draggedItem.name}" a staple item?`,
           async (ok) => {
             if (ok) {
-              await promoteToStaple(draggedItem.id);
+              await updateStapleStatus(draggedItem.id, true);
               reorderItems(oldIndex, newIndex);
             }
           }
         );
       } else if (confirm(`Make "${draggedItem.name}" a staple item?`)) {
-        await promoteToStaple(draggedItem.id);
+        await updateStapleStatus(draggedItem.id, true);
+        reorderItems(oldIndex, newIndex);
+      }
+      return;
+    }
+
+    // Check if dragging from staples to one-off section (demote)
+    if (draggedItem.is_staple && !targetItem.is_staple) {
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.showConfirm(
+          `Remove "${draggedItem.name}" from staples?`,
+          async (ok) => {
+            if (ok) {
+              await updateStapleStatus(draggedItem.id, false);
+              reorderItems(oldIndex, newIndex);
+            }
+          }
+        );
+      } else if (confirm(`Remove "${draggedItem.name}" from staples?`)) {
+        await updateStapleStatus(draggedItem.id, false);
         reorderItems(oldIndex, newIndex);
       }
       return;
@@ -174,19 +192,25 @@ function App() {
     }
   };
 
-  const promoteToStaple = async (id: string) => {
+  const updateStapleStatus = async (id: string, isStaple: boolean) => {
     setItems(prev => prev.map(i => 
-      i.id === id ? { ...i, is_staple: true } : i
+      i.id === id ? { ...i, is_staple: isStaple } : i
     ));
 
     try {
       await fetch(`${API_URL}/items/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_staple: true }),
+        body: JSON.stringify({ is_staple: isStaple }),
       });
+      // Refresh to get proper sorting
+      fetchItems();
     } catch (e) {
-      console.error('Failed to promote item:', e);
+      console.error('Failed to update staple status:', e);
+      // Revert on error
+      setItems(prev => prev.map(i => 
+        i.id === id ? { ...i, is_staple: !isStaple } : i
+      ));
     }
   };
 
