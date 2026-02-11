@@ -137,11 +137,17 @@ function App() {
     
     if (!over || active.id === over.id) return;
 
-    const oldIndex = items.findIndex(i => i.id === active.id);
-    const newIndex = items.findIndex(i => i.id === over.id);
+    // Use current sorted order for finding positions
+    const currentSorted = [...items].sort((a, b) => {
+      if (a.is_staple !== b.is_staple) return a.is_staple ? -1 : 1;
+      return a.position - b.position;
+    });
+
+    const oldIndex = currentSorted.findIndex(i => i.id === active.id);
+    const newIndex = currentSorted.findIndex(i => i.id === over.id);
     
-    const draggedItem = items[oldIndex];
-    const targetItem = items[newIndex];
+    const draggedItem = currentSorted[oldIndex];
+    const targetItem = currentSorted[newIndex];
 
     // Check if dragging from one-off to staples section (promote)
     if (!draggedItem.is_staple && targetItem.is_staple) {
@@ -185,14 +191,27 @@ function App() {
   };
 
   const reorderItems = async (oldIndex: number, newIndex: number) => {
-    const newItems = arrayMove(items, oldIndex, newIndex);
-    setItems(newItems);
+    // Work with sorted array
+    const currentSorted = [...items].sort((a, b) => {
+      if (a.is_staple !== b.is_staple) return a.is_staple ? -1 : 1;
+      return a.position - b.position;
+    });
+    
+    const newSorted = arrayMove(currentSorted, oldIndex, newIndex);
+    
+    // Update positions based on new order
+    const updatedItems = newSorted.map((item, idx) => ({
+      ...item,
+      position: idx
+    }));
+    
+    setItems(updatedItems);
 
     try {
       await fetch(`${API_URL}/items/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_ids: newItems.map(i => i.id) }),
+        body: JSON.stringify({ item_ids: newSorted.map(i => i.id) }),
       });
     } catch (e) {
       console.error('Failed to save order:', e);
@@ -221,9 +240,15 @@ function App() {
     }
   };
 
-  // Separate staples and one-offs
-  const staples = items.filter(i => i.is_staple);
-  const oneOffs = items.filter(i => !i.is_staple);
+  // Sort items: staples first, then one-offs, preserving position within each group
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.is_staple !== b.is_staple) return a.is_staple ? -1 : 1;
+    return a.position - b.position;
+  });
+
+  const staples = sortedItems.filter(i => i.is_staple);
+  const oneOffs = sortedItems.filter(i => !i.is_staple);
+  const firstOneOffIndex = staples.length;
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -250,13 +275,14 @@ function App() {
         onDragEnd={handleDragEnd}
       >
         <main>
-          {staples.length > 0 && (
-            <section className="section">
-              <h2>⭐ Staples</h2>
-              <SortableContext
-                items={staples.map(i => i.id)}
-                strategy={verticalListSortingStrategy}
-              >
+          {/* Single SortableContext with all items for proper drag behavior */}
+          <SortableContext
+            items={sortedItems.map(i => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {staples.length > 0 && (
+              <section className="section">
+                <h2>⭐ Staples</h2>
                 {staples.map(item => (
                   <SortableItem
                     key={item.id}
@@ -264,17 +290,11 @@ function App() {
                     onToggle={() => toggleItem(item.id)}
                   />
                 ))}
-              </SortableContext>
-            </section>
-          )}
+              </section>
+            )}
 
-          {/* Always show one-offs section so staples can be demoted */}
-          <section className="section">
-            <h2>📝 One-offs</h2>
-            <SortableContext
-              items={oneOffs.map(i => i.id)}
-              strategy={verticalListSortingStrategy}
-            >
+            <section className="section">
+              <h2>📝 One-offs</h2>
               {oneOffs.length > 0 ? (
                 oneOffs.map(item => (
                   <SortableItem
@@ -288,8 +308,8 @@ function App() {
                   <p className="hint">Drag staples here to demote them</p>
                 </div>
               )}
-            </SortableContext>
-          </section>
+            </section>
+          </SortableContext>
 
           {items.length === 0 && (
             <div className="empty">
