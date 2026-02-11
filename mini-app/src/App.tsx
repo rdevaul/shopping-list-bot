@@ -50,6 +50,7 @@ interface ShoppingItem {
   quantity?: string;
   is_staple: boolean;
   checked: boolean;
+  position: number;
 }
 
 // Use relative paths for Vercel API routes, or fall back to env var for local dev
@@ -248,7 +249,6 @@ function App() {
 
   const staples = sortedItems.filter(i => i.is_staple);
   const oneOffs = sortedItems.filter(i => !i.is_staple);
-  const firstOneOffIndex = staples.length;
 
   if (loading) {
     return <div className="loading">Loading...</div>;
