@@ -55,11 +55,12 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 8px;
   background: var(--secondary-bg);
   border-radius: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   touch-action: none;
+  margin-left: 20px;
 }
 
 .item.checked {
@@ -74,7 +75,7 @@ header h1 {
   cursor: grab;
   color: var(--hint-color);
   font-size: 18px;
-  padding: 12px 8px;
+  padding: 6px 8px;
   user-select: none;
   touch-action: none;
   -webkit-touch-callout: none;
@@ -106,7 +107,7 @@ header h1 {
 }
 
 .item-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   text-transform: capitalize;
 }

@@ -60,6 +60,7 @@ function App() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideChecked, setHideChecked] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -247,8 +248,9 @@ function App() {
     return a.position - b.position;
   });
 
-  const staples = sortedItems.filter(i => i.is_staple);
-  const oneOffs = sortedItems.filter(i => !i.is_staple);
+  const displayItems = hideChecked ? sortedItems.filter(i => !i.checked) : sortedItems;
+  const staples = displayItems.filter(i => i.is_staple);
+  const oneOffs = displayItems.filter(i => !i.is_staple);
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -267,6 +269,10 @@ function App() {
     <div className="app">
       <header>
         <h1>🛒 Shopping List</h1>
+        <label style={{fontSize: '13px', color: 'var(--hint-color)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginTop: '8px', cursor: 'pointer'}}>
+          <input type="checkbox" checked={hideChecked} onChange={e => setHideChecked(e.target.checked)} style={{cursor: 'pointer'}} />
+          Hide checked items
+        </label>
       </header>
 
       <DndContext
@@ -277,7 +283,7 @@ function App() {
         <main>
           {/* Single SortableContext with all items for proper drag behavior */}
           <SortableContext
-            items={sortedItems.map(i => i.id)}
+            items={displayItems.map(i => i.id)}
             strategy={verticalListSortingStrategy}
           >
             {staples.length > 0 && (
