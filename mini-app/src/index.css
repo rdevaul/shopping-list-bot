@@ -51,16 +51,45 @@ header h1 {
   padding: 0 8px;
 }
 
+.item-wrapper {
+  position: relative;
+  border-radius: 12px;
+  margin-bottom: 6px;
+  margin-left: 20px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.item-delete-bg {
+  position: absolute;
+  inset: 0;
+  background: #dc2626;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 20px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.item-delete-label {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  user-select: none;
+}
+
 .item {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 8px;
   background: var(--secondary-bg);
   border-radius: 12px;
-  margin-bottom: 6px;
   touch-action: none;
-  margin-left: 20px;
 }
 
 .item.checked {

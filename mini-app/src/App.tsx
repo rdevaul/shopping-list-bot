@@ -107,6 +107,24 @@ function App() {
     fetchItems();
   }, [fetchItems]);
 
+  // Delete item from the list
+  const deleteItem = async (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    // Optimistic removal
+    setItems(prev => prev.filter(i => i.id !== id));
+
+    try {
+      await fetch(`${API_URL}/items/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      // Revert on error
+      setItems(prev => [...prev, item]);
+    }
+  };
+
   // Toggle item checked state
   const toggleItem = async (id: string) => {
     const item = items.find(i => i.id === id);
@@ -294,6 +312,7 @@ function App() {
                     key={item.id}
                     item={item}
                     onToggle={() => toggleItem(item.id)}
+                    onDelete={deleteItem}
                   />
                 ))}
               </section>
@@ -307,6 +326,7 @@ function App() {
                     key={item.id}
                     item={item}
                     onToggle={() => toggleItem(item.id)}
+                    onDelete={deleteItem}
                   />
                 ))
               ) : (
